@@ -8,6 +8,14 @@ An MCP server for BigQuery that lets you ask Claude questions about your search 
 
 38 tools. GA4 + GSC revenue attribution. Generative AI conversation-query detection. ML forecasting. Anomaly detection. Anonymous query analysis. Free and open source.
 
+> **This is a fork.** It tracks [Suganthan-Mohanadasan/Suganthans-BigQuery-MCP-Server](https://github.com/Suganthan-Mohanadasan/Suganthans-BigQuery-MCP-Server) and currently sits on upstream v4.1.1. Fork version 4.3.0. Three things are not in upstream:
+>
+> - **Five extra tools** (38 against upstream's 33): `gsc_query_count`, `gsc_discover`, `gsc_shopping`, `gsc_image_search` and `gsc_click_curve`
+> - **CTR judged against the property's own measured click curve**, built from the rows a tool has already fetched. The industry study table survives only as a fallback for ranks with too little volume to measure, and every response says which of the two it used
+> - **Optional device and country filters** on `gsc_quick_wins`, `gsc_ctr_opportunities`, `gsc_content_decay` and `gsc_query_count`
+>
+> Everything else below comes from upstream. Several changes that started in this fork — the impression-weighted position maths, the position caveat on tools that report a rank, per-dataset location resolution — have since landed upstream and are no longer differences.
+
 > **Full setup guide with screenshots:** [suganthan.com/blog/bigquery-mcp-server/](https://suganthan.com/blog/bigquery-mcp-server/)
 >
 > **New in v4.1 (AI conversation queries):** [suganthan.com/blog/ai-mode-queries-search-console/](https://suganthan.com/blog/ai-mode-queries-search-console/)
