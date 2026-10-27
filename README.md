@@ -6,11 +6,12 @@
 
 An MCP server for BigQuery that lets you ask Claude questions about your search and analytics data warehouse and get real answers. Not raw query results. Actual analysis with verdicts and recommendations.
 
-38 tools. GA4 + GSC revenue attribution. Generative AI conversation-query detection. ML forecasting. Anomaly detection. Anonymous query analysis. Free and open source.
+43 tools. GA4 + GSC revenue attribution. YouTube channel analysis. Generative AI conversation-query detection. ML forecasting. Anomaly detection. Anonymous query analysis. Free and open source.
 
-> **This is a fork.** It tracks [Suganthan-Mohanadasan/Suganthans-BigQuery-MCP-Server](https://github.com/Suganthan-Mohanadasan/Suganthans-BigQuery-MCP-Server) and currently sits on upstream v4.1.1. Fork version 4.3.0. Three things are not in upstream:
+> **This is a fork.** It tracks [Suganthan-Mohanadasan/Suganthans-BigQuery-MCP-Server](https://github.com/Suganthan-Mohanadasan/Suganthans-BigQuery-MCP-Server) and currently sits on upstream v4.1.1. Fork version 4.4.0. Four things are not in upstream:
 >
-> - **Five extra tools** (38 against upstream's 33): `gsc_query_count`, `gsc_discover`, `gsc_shopping`, `gsc_image_search` and `gsc_click_curve`
+> - **Five extra tools** (43 against upstream's 33 with the YouTube tools): `gsc_query_count`, `gsc_discover`, `gsc_shopping`, `gsc_image_search` and `gsc_click_curve`
+> - **Five YouTube tools** on the BigQuery Data Transfer for YouTube Channel: `youtube_channel_trend`, `youtube_top_videos`, `youtube_traffic_sources`, `youtube_audience`, `youtube_video_detail`
 > - **CTR judged against the property's own measured click curve**, built from the rows a tool has already fetched. The industry study table survives only as a fallback for ranks with too little volume to measure, and every response says which of the two it used
 > - **Optional device and country filters** on `gsc_quick_wins`, `gsc_ctr_opportunities`, `gsc_content_decay` and `gsc_query_count`
 >
@@ -121,7 +122,7 @@ Your service account needs three IAM roles: **BigQuery Data Editor**, **BigQuery
 >
 > **Want the GA4 + GSC blending tools too?** Add the GA4 BigQuery export and one extra environment variable (`BIGQUERY_GA4_DATASET`). Full walkthrough: [GA4 + GSC in BigQuery setup guide](https://suganthan.com/blog/google-analytics-bigquery-mcp-server/).
 
-## All 38 tools
+## All 43 tools
 
 ### BigQuery exclusive (14)
 
@@ -176,6 +177,18 @@ Require the GA4 BigQuery export running alongside GSC in the same project. Set `
 | `ga4_gsc_branded_performance` | How does branded vs non-branded traffic convert? |
 | `ga4_gsc_page_performance` | Full page-level search + analytics metrics joined per landing page. |
 
+### YouTube channel (5, fork only)
+
+Read the unified views `v_kanal_tag`, `v_video_tag`, `v_quelle_tag`, `v_video_quelle_tag`, `v_land_tag`, `v_geraet_tag` and `v_abo_tag` in the YouTube dataset (`BIGQUERY_YOUTUBE_DATASET`, default `youtube_channel`). The views combine the [BigQuery Data Transfer for YouTube Channel](https://cloud.google.com/bigquery/docs/youtube-channel-transfer) with an optional one-off history from the YouTube Analytics API for the time before the transfer started; their definition lives with the data warehouse that consumes them. Channel reports carry no revenue, so neither do these tools. Every period is compared with the equally long period before it; the change is left empty when the previous period has fewer days with data.
+
+| Tool | What it answers |
+|---|---|
+| `youtube_channel_trend` | How is the channel doing? Views, watch time, average view duration, engagement and subscriber change, with a day/week/month series. |
+| `youtube_top_videos` | Which videos carry the channel? Ranked by views, watch time, net subscribers or likes, with share and change. Titles via YouTube oEmbed. |
+| `youtube_traffic_sources` | Where do views come from: search, browse, suggested, Shorts feed, external? |
+| `youtube_audience` | Split by country, device type or subscription status. |
+| `youtube_video_detail` | One video: totals, time series and its traffic sources. |
+
 ### General purpose (6)
 
 Work with any BigQuery dataset, not just GSC.
@@ -224,6 +237,7 @@ Both complement each other. Use the [GSC MCP server](https://github.com/Sugantha
 | `BIGQUERY_LOCATION` | No | Default dataset location (default: `US`). Set to `EU`, `asia-southeast1`, etc. if needed. |
 | `BIGQUERY_DATASET_LOCATIONS` | No | Per-dataset location overrides for projects whose datasets live in different regions. Format: `dataset:location,project.dataset:location` (e.g. `searchconsole_old:europe-west3,analytics_123456789:EU`). Datasets not listed fall back to `BIGQUERY_LOCATION`. A query touching datasets in two different locations is rejected with a clear error, because BigQuery cannot join across locations. |
 | `BIGQUERY_GA4_DATASET` | No | GA4 export dataset name (e.g. `analytics_123456789`). Only needed for the 6 `ga4_gsc_*` blending tools. |
+| `BIGQUERY_YOUTUBE_DATASET` | No | Dataset with the YouTube views (default `youtube_channel`). Only needed for the 5 `youtube_*` tools. If it lives outside `BIGQUERY_LOCATION`, add it to `BIGQUERY_DATASET_LOCATIONS`. |
 
 ## Full guide
 

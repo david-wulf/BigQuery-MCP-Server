@@ -4,7 +4,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 
-import { GUARDRAIL_SUFFIX, VISUAL_SUFFIX, POSITION_CAVEAT, withMeta } from "./guardrails.js";
+import { GUARDRAIL_SUFFIX, VISUAL_SUFFIX, POSITION_CAVEAT, YOUTUBE_SOURCE, withMeta } from "./guardrails.js";
 import { runQuery, dryRunQuery } from "./tools/query.js";
 import { listDatasets } from "./tools/list-datasets.js";
 import { listTables } from "./tools/list-tables.js";
@@ -43,6 +43,13 @@ import { gscDiscover } from "./tools/gsc-discover.js";
 import { gscClickCurve } from "./tools/gsc-click-curve.js";
 import { gscShopping } from "./tools/gsc-shopping.js";
 import { gscImageSearch } from "./tools/gsc-image-search.js";
+import {
+  youtubeChannelTrend,
+  youtubeTopVideos,
+  youtubeTrafficSources,
+  youtubeAudience,
+  youtubeVideoDetail,
+} from "./tools/youtube.js";
 
 const server = new McpServer({
   name: "bigquery-mcp",
@@ -1014,10 +1021,125 @@ server.registerTool(
     }
 );
 
+// ============================================================
+// YOUTUBE CHANNEL TOOLS (BigQuery Data Transfer, dataset youtube_channel)
+// ============================================================
+
+const YOUTUBE_WINDOW = {
+  days: z.number().default(28).describe("Number of days to analyse, ending at the latest day with data. Compared with the equally long period right before."),
+  start_date: z.string().optional().describe("Explicit start date YYYY-MM-DD (overrides days)"),
+  end_date: z.string().optional().describe("Explicit end date YYYY-MM-DD (default: latest day with data)"),
+  dataset: z.string().optional().describe("BigQuery dataset with the YouTube views (default youtube_channel)"),
+};
+
+const YOUTUBE_NOTE = " Data: YouTube channel reports via BigQuery Data Transfer; days before the transfer start come from a one-off YouTube Analytics API history. Days are in Pacific time. No revenue in this data.";
+
+server.registerTool(
+  "youtube_channel_trend",
+  {
+    description: "YouTube channel performance: views, watch time, average view duration, likes, comments, shares and subscriber change for a period, compared with the previous period, plus a day/week/month time series." + YOUTUBE_NOTE + GUARDRAIL_SUFFIX + VISUAL_SUFFIX,
+    inputSchema: {
+      ...YOUTUBE_WINDOW,
+      granularity: z.enum(["day", "week", "month"]).default("day").describe("Bucket size for the time series"),
+    },
+  },
+  async ({ days, granularity, start_date, end_date, dataset }) => {
+    try {
+      const results = await youtubeChannelTrend(days, granularity, start_date, end_date, dataset);
+      const wrapped = withMeta(results, "youtube_channel_trend", { days, granularity, start_date, end_date }, YOUTUBE_SOURCE);
+      return { content: [{ type: "text", text: JSON.stringify(wrapped, null, 2) }] };
+    } catch (error) {
+      return errorResponse(error);
+    }
+  }
+);
+
+server.registerTool(
+  "youtube_top_videos",
+  {
+    description: "Top YouTube videos of the channel in a period, ranked by views, watch time, net subscribers or likes, with share of channel views and change against the previous period. Titles come from YouTube's public oEmbed endpoint where available." + YOUTUBE_NOTE + GUARDRAIL_SUFFIX + VISUAL_SUFFIX,
+    inputSchema: {
+      ...YOUTUBE_WINDOW,
+      limit: z.number().default(25).describe("How many videos to return (max 200)"),
+      sort_by: z.enum(["views", "watchtime", "subscribers", "likes"]).default("views").describe("Ranking metric"),
+      with_titles: z.boolean().default(true).describe("Look up video titles over oEmbed"),
+    },
+  },
+  async ({ days, limit, sort_by, start_date, end_date, with_titles, dataset }) => {
+    try {
+      const results = await youtubeTopVideos(days, limit, sort_by, start_date, end_date, with_titles, dataset);
+      const wrapped = withMeta(results, "youtube_top_videos", { days, limit, sort_by, start_date, end_date }, YOUTUBE_SOURCE);
+      return { content: [{ type: "text", text: JSON.stringify(wrapped, null, 2) }] };
+    } catch (error) {
+      return errorResponse(error);
+    }
+  }
+);
+
+server.registerTool(
+  "youtube_traffic_sources",
+  {
+    description: "Where YouTube views come from (search, browse/home, suggested videos, Shorts feed, external, ...): views, watch time, share and change against the previous period, channel level." + YOUTUBE_NOTE + GUARDRAIL_SUFFIX + VISUAL_SUFFIX,
+    inputSchema: { ...YOUTUBE_WINDOW },
+  },
+  async ({ days, start_date, end_date, dataset }) => {
+    try {
+      const results = await youtubeTrafficSources(days, start_date, end_date, dataset);
+      const wrapped = withMeta(results, "youtube_traffic_sources", { days, start_date, end_date }, YOUTUBE_SOURCE);
+      return { content: [{ type: "text", text: JSON.stringify(wrapped, null, 2) }] };
+    } catch (error) {
+      return errorResponse(error);
+    }
+  }
+);
+
+server.registerTool(
+  "youtube_audience",
+  {
+    description: "YouTube audience split by country, device type or subscription status (subscribed vs not), with views, watch time, share and change against the previous period. Subscription status exists only from the first transfer day on." + YOUTUBE_NOTE + GUARDRAIL_SUFFIX + VISUAL_SUFFIX,
+    inputSchema: {
+      ...YOUTUBE_WINDOW,
+      dimension: z.enum(["country", "device", "subscribed_status"]).default("country").describe("Split dimension"),
+      limit: z.number().default(30).describe("Maximum number of segments"),
+    },
+  },
+  async ({ dimension, days, limit, start_date, end_date, dataset }) => {
+    try {
+      const results = await youtubeAudience(dimension, days, limit, start_date, end_date, dataset);
+      const wrapped = withMeta(results, "youtube_audience", { dimension, days, limit, start_date, end_date }, YOUTUBE_SOURCE);
+      return { content: [{ type: "text", text: JSON.stringify(wrapped, null, 2) }] };
+    } catch (error) {
+      return errorResponse(error);
+    }
+  }
+);
+
+server.registerTool(
+  "youtube_video_detail",
+  {
+    description: "One YouTube video in detail: totals for the period against the previous period, a day/week/month time series and its traffic sources (traffic sources only from the first transfer day on)." + YOUTUBE_NOTE + GUARDRAIL_SUFFIX + VISUAL_SUFFIX,
+    inputSchema: {
+      video_id: z.string().describe("11-character YouTube video ID"),
+      ...YOUTUBE_WINDOW,
+      days: z.number().default(90).describe("Number of days to analyse, ending at the latest day with data"),
+      granularity: z.enum(["day", "week", "month"]).default("day").describe("Bucket size for the time series"),
+    },
+  },
+  async ({ video_id, days, granularity, start_date, end_date, dataset }) => {
+    try {
+      const results = await youtubeVideoDetail(video_id, days, granularity, start_date, end_date, dataset);
+      const wrapped = withMeta(results, "youtube_video_detail", { video_id, days, granularity, start_date, end_date }, YOUTUBE_SOURCE);
+      return { content: [{ type: "text", text: JSON.stringify(wrapped, null, 2) }] };
+    } catch (error) {
+      return errorResponse(error);
+    }
+  }
+);
+
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error("BigQuery MCP server v4.3.0 running on stdio (38 tools)");
+  console.error("BigQuery MCP server v4.4.0 running on stdio (43 tools)");
 }
 
 main().catch((error) => {

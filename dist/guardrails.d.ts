@@ -12,7 +12,12 @@ export declare const POSITION_CAVEAT = " POSITION: avg_position is an impression
  * Wraps tool results with a _meta provenance field so Claude
  * knows the data source and is anchored to the actual numbers.
  */
-export declare function withMeta(data: unknown, toolName: string, params: Record<string, unknown>): {
+export interface MetaSource {
+    source: string;
+    note: string;
+}
+export declare const YOUTUBE_SOURCE: MetaSource;
+export declare function withMeta(data: unknown, toolName: string, params: Record<string, unknown>, origin?: MetaSource): {
     _meta: {
         source: string;
         tool: string;

@@ -19,10 +19,28 @@ export const POSITION_CAVEAT =
  * Wraps tool results with a _meta provenance field so Claude
  * knows the data source and is anchored to the actual numbers.
  */
+export interface MetaSource {
+  source: string;
+  note: string;
+}
+
+const GSC_SOURCE: MetaSource = {
+  source: "Google BigQuery (GSC bulk export data)",
+  note:
+    "All numbers in this response come directly from BigQuery. They are exact values from the GSC bulk data export, not estimates. Base your analysis only on this data. Do not invent or assume additional context.",
+};
+
+export const YOUTUBE_SOURCE: MetaSource = {
+  source: "Google BigQuery (YouTube channel data: BigQuery Data Transfer reports, earlier days from a one-off YouTube Analytics API history)",
+  note:
+    "All numbers in this response come directly from BigQuery. Days and dates follow YouTube's Pacific time. The data has no revenue - YouTube channel reports do not contain it. The field herkunft/source says whether a day comes from the transfer reports (reporting_api) or the history (analytics_api). Base your analysis only on this data. Do not invent or assume additional context.",
+};
+
 export function withMeta(
   data: unknown,
   toolName: string,
-  params: Record<string, unknown>
+  params: Record<string, unknown>,
+  origin: MetaSource = GSC_SOURCE
 ): {
   _meta: {
     source: string;
@@ -34,11 +52,10 @@ export function withMeta(
 } {
   return {
     _meta: {
-      source: "Google BigQuery (GSC bulk export data)",
+      source: origin.source,
       tool: toolName,
       parameters: params,
-      note:
-        "All numbers in this response come directly from BigQuery. They are exact values from the GSC bulk data export, not estimates. Base your analysis only on this data. Do not invent or assume additional context.",
+      note: origin.note,
     },
     data,
   };
